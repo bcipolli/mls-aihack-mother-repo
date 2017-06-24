@@ -5,7 +5,7 @@ import re
 import numpy as np
 import pandas as pd
 
-from nlp_demo import do_lemmatize, do_vectorize
+from nlp_demo import do_lda, do_lemmatize, do_vectorize
 
 
 def clean_text(txt):
@@ -42,37 +42,59 @@ def vectorize_articles(df, event_uris, pkl_file, min_vocab_length=100, force=Fal
     print("Vectorizing data...")
     if not force and op.exists(pkl_file):
         with open(pkl_file, 'rb') as fp:
-            doc_counts, vocab = pkl.load(fp)
+            doc_counts, vocab, vectorizer = pkl.load(fp)
     else:
         docs = df['body'].values
         l_docs = do_lemmatize(docs)
-        doc_counts, vocab = do_vectorize(l_docs, min_df=2, type="count")
-
-        # Limit by vocab
-        good_article_idx = np.squeeze(np.asarray((doc_counts > 0).sum(axis=1) >= min_vocab_length))
-        doc_counts = doc_counts[good_article_idx]
-        good_vocab_idx = np.squeeze(np.asarray(doc_counts.sum(axis=0) > 0))
-        doc_counts = doc_counts[:, good_vocab_idx]
-        vocab = vocab[good_vocab_idx]
+        doc_counts, vocab, vectorizer = do_vectorize(l_docs, min_df=2, type="count")
 
         with open(pkl_file, 'wb') as fp:
-            pkl.dump((doc_counts, vocab), fp)
+            pkl.dump((doc_counts, vocab, vectorizer), fp)
 
-    return doc_counts, vocab
+    # Limit by vocab
+    good_article_idx = np.squeeze(np.asarray((doc_counts > 0).sum(axis=1) >= min_vocab_length))
+    doc_counts = doc_counts[good_article_idx]
+    good_vocab_idx = np.squeeze(np.asarray(doc_counts.sum(axis=0) > 0))
+    doc_counts = doc_counts[:, good_vocab_idx]
+    vocab = vocab[good_vocab_idx]
+    df = df.iloc[good_article_idx]
+    return doc_counts, vocab, vectorizer, df
 
 
-def model_articles(df, doc_counts, vocab, event_uris, frequency_thresh=0.5):
-
+def model_articles(df, doc_counts, vectorizer, vocab, event_uris, n_events=2,
+                   frequency_thresh=0.5, force=False):
     print("Model each event separately...")
-    doc_events = df['eventUri'].values
-    for uri in event_uris:
-        event_doc_counts = doc_counts[doc_events == uri]
-        n_articles = event_doc_counts.shape[0]
-        word_freq_over_articles = (event_doc_counts > 0).sum(axis=0) / float(n_articles)
-        word_freq_over_articles = np.squeeze(np.asarray(word_freq_over_articles))
-        event_vocab = vocab[(word_freq_over_articles >= frequency_thresh)]
-        # Now model
-    return None
+    # Now model
+    model_pkl = 'lda-model-%d.pkl' % n_events
+    if not force and op.exists(model_pkl):
+        with open(model_pkl, 'rb') as fp:
+            lda_labels, lda_output_mat, lda_cats, lda_mat, model = pkl.dump(fp)
+    else:
+        doc_events = df['eventUri'].values
+        common_vocab_indices = []
+        for uri in event_uris:
+            print uri
+            event_doc_counts = doc_counts[doc_events == uri]
+            n_articles = event_doc_counts.shape[0]
+            word_freq_over_articles = (event_doc_counts > 0).sum(axis=0) / float(n_articles)
+            word_freq_over_articles = np.squeeze(np.asarray(word_freq_over_articles))
+
+            # Store common words for this event, then blank them out in the word counts
+            common_vocab_idx = word_freq_over_articles >= frequency_thresh
+            doc_count_idx = np.asmatrix(doc_events == uri).T * np.asmatrix(common_vocab_idx)
+            doc_counts[doc_count_idx] = 0
+            common_vocab_indices.append(common_vocab_idx)
+
+            print '\tevent vocab:', vocab[common_vocab_idx]
+
+        # TODO: group by news source.
+        lda_labels, lda_output_mat, lda_cats, lda_mat, model = do_lda(
+            lda_mat=doc_counts, vectorizer=vectorizer, vocab=vocab,
+            n_topics=10, n_top_words=10, n_iter=1500, return_model=True)
+        with open(model_pkl, 'wb') as fp:
+            pkl.dump((lda_labels, lda_output_mat, lda_cats, lda_mat, model), fp)
+
+    return common_vocab_indices, doc_counts, lda_labels, lda_output_mat, lda_cats, lda_mat, model
 
 
 def main(csv_file='raw_dataframe.csv', n_events=2, min_article_length=250,
@@ -84,12 +106,14 @@ def main(csv_file='raw_dataframe.csv', n_events=2, min_article_length=250,
 
     df, event_uris = load_and_clean(
         csv_file=csv_file, n_events=n_events, min_article_length=min_article_length)
-    doc_counts, vocab = vectorize_articles(
+    doc_counts, vocab, vectorizer, df = vectorize_articles(
         df=df, event_uris=event_uris, pkl_file=pkl_file, force=force,
         min_vocab_length=min_vocab_length)
-    model_articles(
-        df=df, event_uris=event_uris, vocab=vocab, doc_counts=doc_counts)
+    _, _, lda_labels, lda_output_mat, lda_cats, lda_mat, model = model_articles(
+        df=df, event_uris=event_uris, vectorizer=vectorizer, vocab=vocab,
+        doc_counts=doc_counts, force=force, n_events=n_events)
+    # TODO: From here, call plotting
 
 
 if __name__ == '__main__':
-    print main(force=True)
+    print main(force=False)
