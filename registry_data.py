@@ -24,6 +24,13 @@ def fetch_events(api_key, min_articles=500, force=False):
     event_uris = df_event.uri.tolist()
     event_uris = [ev for ev in event_uris if ev[:3] == 'eng']
 
+    return_info = er.ReturnInfo(
+        articleInfo=er.ArticleInfoFlags(
+            bodyLen=-1,
+            concepts=True,
+            categories=True,
+            originalArticle=True))
+
     all_articles = []
     for uri in event_uris:
         print "current uri: ", uri
@@ -34,7 +41,7 @@ def fetch_events(api_key, min_articles=500, force=False):
             tmp_df = pd.read_csv(event_csv_file)
         else:
             query_iter = er.QueryEventArticlesIter(uri)
-            for article in query_iter.execQuery(event_registry, lang="eng"):
+            for article in query_iter.execQuery(event_registry, lang="eng", returnInfo=return_info):
                 current_event_data.append(article)
             tmp_df = pd.DataFrame(current_event_data)
             tmp_df.to_csv(event_csv_file, encoding='utf-8')
