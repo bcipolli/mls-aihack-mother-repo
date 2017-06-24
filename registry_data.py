@@ -7,9 +7,9 @@ import pandas as pd
 def fetch_events(api_key, min_articles=500, force=False):
     event_registry = er.EventRegistry(apiKey=api_key)
     qei = er.QueryEventsIter(
-        lang='eng', minArticlesInEvent=min_articles)
+        lang='eng', minArticlesInEvent=min_articles, maxArticlesInEvent=min_articles * 10)
 
-    # collects event ids
+    # Single query to collect event ids
     all_events_csv_file = op.join('csv', 'events_min%d.csv' % min_articles)
     if not force and op.exists(all_events_csv_file):
         df_event = pd.read_csv(all_events_csv_file)

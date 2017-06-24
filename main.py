@@ -8,10 +8,59 @@ import pandas as pd
 from nlp_demo import do_lda, do_lemmatize, do_vectorize
 
 
+def get_srcs(df):
+    srcs = []
+    for source in df.source:
+        try:
+            title = eval(source)['title']
+        except:
+            continue
+        srcs.append(title)
+    return srcs
+
+
+def get_src(source):
+    try:
+        title = eval(source)['title']
+    except:
+        return
+    return title
+
+
 def clean_text(txt):
     txt = re.sub(r'[^\sa-zA-Z]', '', txt)
     txt = re.sub(r'\s+', ' ', txt)
     return txt
+
+
+def reduce_by_source(df, thresh=0.75):
+    df['org_title'] = df['source'].map(get_src)
+    n_events = len(df['eventUri'].unique())
+
+    total_srcs = get_srcs(df)
+    all_srcs = []
+    for group in df.groupby(by='eventUri'):
+        srcs = get_srcs(group[1])
+        all_srcs.append(srcs)
+    srcs_dict = {src: 0 for src in total_srcs}
+    for group in df.groupby(by='eventUri'):
+        event_srcs = list(set(get_srcs(group[1])))
+        for src in event_srcs:
+            srcs_dict[src] += 1
+    srcs_with_cover = {key: value for key, value in srcs_dict.items()
+                       if value > n_events * thresh}
+    print('total sources: {}\nsource with cover (>{}): {}'.format(
+        len(np.unique(total_srcs)), thresh, len(srcs_with_cover)))
+
+    cover_articles = {}
+    dfs = []
+    for event_uri, df in df.groupby(by='eventUri'):
+        cover_articles[event_uri] = {}
+        for src in srcs_with_cover.keys():
+            dfs.append(df.loc[df.org_title == src, :])
+    article_df = pd.concat(dfs)
+
+    return article_df
 
 
 def load_and_clean(csv_file, n_events=2, min_article_length=250):
@@ -25,6 +74,9 @@ def load_and_clean(csv_file, n_events=2, min_article_length=250):
         lambda b: not pd.isnull(b) and len(b) > min_article_length)
     df = df[good_idx]
 
+    # Reduce by source.
+    df = reduce_by_source(df)
+
     # Reduce by # events
     if n_events and n_events < np.inf:
         keep_event_uris = event_uris[:n_events]
@@ -35,6 +87,7 @@ def load_and_clean(csv_file, n_events=2, min_article_length=250):
             len(event_uris), len(keep_event_uris), len(df), len(new_df)))
         df = new_df
         event_uris = keep_event_uris
+
     return df, event_uris
 
 
@@ -113,7 +166,8 @@ def main(csv_file='raw_dataframe.csv', n_events=2, min_article_length=250,
         df=df, event_uris=event_uris, vectorizer=vectorizer, vocab=vocab,
         doc_counts=doc_counts, force=force, n_events=n_events)
     # TODO: From here, call plotting
+    df['source']
 
 
 if __name__ == '__main__':
-    print main(force=False)
+    print main(force=False, n_events=21)
