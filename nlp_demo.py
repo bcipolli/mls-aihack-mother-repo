@@ -85,7 +85,6 @@ def do_lda(lda_mat, vectorizer, vocab, n_topics=10, n_top_words=10, n_iter=1500,
 
     # top word for each topic
     lda_labels = []
-    import pdb; pdb.set_trace()
     t_word = model.topic_word_
     topic_order_idx = np.argsort(np.linalg.norm(t_word, axis=1))[::-1]
     topic_word = t_word[topic_order_idx]  # order by max length
