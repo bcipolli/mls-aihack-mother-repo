@@ -1,4 +1,7 @@
+eventregistry
+lda
 nltk
 numpy
+pandas
 scipy
 sklearn

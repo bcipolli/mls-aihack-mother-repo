@@ -34,3 +34,12 @@ python registry_data.py
 ```
 
 You can tweak parameters, such as the min # articles per event or api key, within the script.
+
+
+
+**Modeling**
+
+
+```
+python main.py
+```
