@@ -114,6 +114,20 @@ def vectorize_articles(df, event_uris, pkl_file, min_vocab_length=100, force=Fal
     return doc_counts, vocab, vectorizer, df
 
 
+def group_doc_counts_by_source(df, doc_counts):
+    # Inputs:
+    # df - dataframe; one row per article. 'source' column defines the news source.
+    # doc_counts - matrix; one row per article, one column per vocabulary item, value is the # of times
+    #  that word appears in the article.
+    #
+    # Outputs: source_counts
+    # matrix; one row per news source, one column per vocabulary item, value is the # of times
+    #  that word appears across all articles from that news source.
+
+    # TODO: group by news source.
+    return doc_counts
+
+
 def model_articles(df, doc_counts, vectorizer, vocab, event_uris, n_events=2,
                    frequency_thresh=0.5, force=False):
     print("Model each event separately...")
@@ -140,9 +154,10 @@ def model_articles(df, doc_counts, vectorizer, vocab, event_uris, n_events=2,
 
             print '\tevent vocab:', vocab[common_vocab_idx]
 
-        # TODO: group by news source.
+        source_counts = group_doc_counts_by_source(df=df, doc_counts=doc_counts)
+
         lda_labels, lda_output_mat, lda_cats, lda_mat, model = do_lda(
-            lda_mat=doc_counts, vectorizer=vectorizer, vocab=vocab,
+            lda_mat=source_counts, vectorizer=vectorizer, vocab=vocab,
             n_topics=10, n_top_words=10, n_iter=1500, return_model=True)
         with open(model_pkl, 'wb') as fp:
             pkl.dump((lda_labels, lda_output_mat, lda_cats, lda_mat, model), fp)
