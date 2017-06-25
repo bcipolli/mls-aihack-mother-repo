@@ -162,7 +162,7 @@ def group_article_counts_by_source(df, article_counts):
 
 def model_articles(df, article_counts, vectorizer, vocab, event_uris, n_events=2,
                    truth_frequency_thresh=0.5, force=False, group_by='source',
-                   n_topics=10, n_iter=1500):
+                   n_topics=10, n_iter=1500, lda_vectorization_type='count'):
     print("Training model ...")
     # Now model
     model_pkl = 'lda-model-groupBy%s-thresh%.2f-top%d-iter%d-ev%d.pkl' % (
@@ -186,8 +186,16 @@ def model_articles(df, article_counts, vectorizer, vocab, event_uris, n_events=2
             common_vocab_idx = word_freq_over_articles >= truth_frequency_thresh
             article_count_idx = np.asmatrix(article_events == uri).T * np.asmatrix(common_vocab_idx)
             article_counts[article_count_idx] = 0
+            # print '\tEvent vocab:', vocab[common_vocab_idx]
+            print common_vocab_idx.sum(), article_counts.shape
 
-            print '\tEvent vocab:', vocab[common_vocab_idx]
+        if lda_vectorization_type == 'tfidf':
+            # Make sure lda_mat has valid values.
+            article_counts = (10 * article_counts).astype(int)
+            good_idx = article_counts.sum(axis=0) > 0
+            good_idx = np.reshape(np.asarray(good_idx), (good_idx.size,))
+            article_counts = article_counts[:, good_idx]
+            vocab = vocab[good_idx]
 
         if group_by == 'source':
             word_counts = group_article_counts_by_source(df=df, article_counts=article_counts)
@@ -230,17 +238,16 @@ def main(csv_file='raw_dataframe.csv', n_events=2, min_article_length=250,
         df=df, event_uris=event_uris, vectorizer=vectorizer, vocab=vocab,
         article_counts=article_counts, force=force, n_events=n_events,
         group_by=lda_groupby, n_topics=lda_topics, n_iter=lda_iters,
-        truth_frequency_thresh=truth_frequency_thresh)
+        truth_frequency_thresh=truth_frequency_thresh,
+        lda_vectorization_type=lda_vectorization_type)
 
-    tsne_plotly(lda_output_mat, lda_cats, lda_labels,
-                df['org_title'], max_points_per_category=points_per_category,
+    tsne_plotly(data=lda_output_mat, cat=lda_cats, labels=lda_labels,
+                source=df['source_title'], max_points_per_category=points_per_category,
                 username=plotly_username, api_key=plotly_api_key)
 
-    tsne_plotly(lda_output_mat, lda_cats, lda_labels,
-                df['source'], max_points_per_category=points_per_category,
-                username=plotly_username, api_key=plotly_api_key)
-
-
+#     tsne_plotly(data=lda_output_mat, cat=lda_cats, labels=lda_labels,
+#                 source=df['source'], max_points_per_category=points_per_category,
+#                 username=plotly_username, api_key=plotly_api_key)
 
 
 if __name__ == '__main__':

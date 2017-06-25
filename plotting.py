@@ -1,9 +1,9 @@
 import numpy as np
 import plotly
-import plotly.plotly as py
 import plotly.graph_objs as go
 from plotly.tools import set_credentials_file
 from sklearn.manifold import TSNE
+
 
 def gen_plotly_specs(datas, names, cat):
     data = []
@@ -34,10 +34,11 @@ def gen_plotly_specs(datas, names, cat):
     return data
 
 
-def tsne_plotly(data, cat, labels, username, api_key, seed=0, max_points_per_category=250):
+def tsne_plotly(data, cat, labels, source, username, api_key, seed=0, max_points_per_category=250):
     print("Plotting data...")
     set_credentials_file(username=username, api_key=api_key)
-    model = TSNE(n_components=3, random_state=seed, verbose=1)
+    model = TSNE(n_components=3, random_state=seed, verbose=1, n_iter=200)
+    reduced = model.fit_transform(data)
 
     # subsample points before tsne / plotting
     new_data = []
@@ -63,6 +64,7 @@ def tsne_plotly(data, cat, labels, username, api_key, seed=0, max_points_per_cat
     )
 
     # generating figures
+    figures = []
     for i in plot_params:
         if i[3]:
             fname = 'topics-scatter.html'

@@ -75,13 +75,6 @@ def do_lda(lda_mat, vectorizer, vocab, n_topics=10, n_top_words=10, n_iter=1500,
 
     lda_cats : the argmax for lda topics of each program
     """
-    # Make sure lda_mat has valid values.
-    lda_mat = (1 * lda_mat).astype(int)
-    good_idx = lda_mat.sum(axis=0) > 0
-    good_idx = np.reshape(np.asarray(good_idx), (good_idx.size,))
-    lda_mat = lda_mat[:, good_idx]
-    vocab = vocab[good_idx]
-
     # need to find all words that were used to build a program x word
     #  count matrix for LDA
     n_docs = lda_mat.shape[0]
