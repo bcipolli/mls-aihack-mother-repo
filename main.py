@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 
 from nlp_demo import do_lda, do_lemmatize, do_vectorize
-from tsne import tsne_plotly
+from plotting import tsne_plotly
 
 
 def get_srcs(df):
@@ -189,6 +189,7 @@ def main(csv_file='raw_dataframe.csv', n_events=2, min_article_length=250,
     tsne_plotly(lda_output_mat, lda_cats, lda_labels)
 
     df['source']
+    tsne_plotly(lda_output_mat, lda_cats, lda_labels)
 
 
 if __name__ == '__main__':

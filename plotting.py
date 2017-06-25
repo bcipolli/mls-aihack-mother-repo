@@ -1,17 +1,8 @@
-# fetching all dependencies
 import numpy as np
-# import pickle
 import plotly.plotly as py
 import plotly.graph_objs as go
 from plotly.tools import set_credentials_file
 from sklearn.manifold import TSNE
-
-
-# TODO:
-# 1. need to create a 3D scatter plot generator
-# 2. need to loop through scrattering plots by topic
-# 3. Add a color legend (code) based on topic
-
 
 
 def tsne_plotly(data, cat, labels):
@@ -57,26 +48,24 @@ def tsne_plotly(data, cat, labels):
     fig = go.Figure(data=data, layout=layout)
     py.iplot(fig, filename='simple-3d-scatter')
 
-# if __name__ == '__main__':
-#     # need to go into the main py
-#     # set_credentials_file(username='bakeralex664', api_key='hWwBstLnNCX5CsDZpOSU')
-#     data = np.random.rand(50, 20)
-#     cat = np.arange(1,10)
-#     print cat.shape
-#     # lda_labels = ['poltics', 'sports']
-#     # topics = np.arange(20)
-#     # model = TSNE(n_components=3, random_state=0)
-#     # tsne(data, ['one', 'two', 'three'], model)
-#
-#     # To make your color choice reproducible, uncomment the following line:
-#     # random.seed(10)
-#
-#     # colors = []
-#     #
-#     # for i in range(0, 10):
-#     #     colors.append(generate_new_color(colors, pastel_factor=0.9))
-#     #
-#     # print 'Your colors:',colors
 
+if __name__ == '__main__':
+    # need to go into the main py
+    # set_credentials_file(username='bakeralex664', api_key='hWwBstLnNCX5CsDZpOSU')
+    data = np.random.rand(50, 20)
+    cat = np.arange(1, 10)
+    print cat.shape
+    # lda_labels = ['poltics', 'sports']
+    # topics = np.arange(20)
+    # model = TSNE(n_components=3, random_state=0)
+    # tsne(data, ['one', 'two', 'three'], model)
 
+    # To make your color choice reproducible, uncomment the following line:
+    # random.seed(10)
 
+    # colors = []
+    #
+    # for i in range(0, 10):
+    #     colors.append(generate_new_color(colors, pastel_factor=0.9))
+    #
+    # print 'Your colors:',colors
