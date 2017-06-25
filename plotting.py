@@ -6,10 +6,11 @@ from sklearn.manifold import TSNE
 
 
 def tsne_plotly(data, cat, labels, username, api_key, seed=0):
+    print("Plotting data...")
+    set_credentials_file(username=username, api_key=api_key)
 
     # creating the model --- I am not sure if you can pickle TSNE need to run experiments. Had problems when i pickeled it
-    set_credentials_file(username=username, api_key=api_key)
-    model = TSNE(n_components=3, random_state=seed)
+    model = TSNE(n_components=3, random_state=seed, verbose=1)
     reduced = model.fit_transform(data)
 
     # scratter plot info for topics

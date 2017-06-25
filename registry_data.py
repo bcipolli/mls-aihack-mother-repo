@@ -8,6 +8,7 @@ def fetch_event_articles(api_key, min_articles=500, force=False, save_on_api_fai
 
     # Uncache csv file.
     if not force and op.exists(csv_file):
+        print("Loading articles from disk...")
         return pd.read_csv(csv_file)
 
     event_registry = er.EventRegistry(apiKey=api_key, repeatFailedRequestCount=2)

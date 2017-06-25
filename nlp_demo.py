@@ -96,7 +96,7 @@ def do_lda(lda_mat, vectorizer, vocab, n_topics=10, n_top_words=10, n_iter=1500,
             print('Topic {}: {}'.format(ti + 1, ' '.join(topic_words)))
 
     if verbose > 0:
-        print("building program by topic weight output matrix")
+        print("\tBuilding [document x topic weight] output matrix")
     lda_cats = np.zeros(n_docs, dtype=int)
     lda_output_mat = np.zeros((n_docs, n_topics))
     for x in xrange(n_docs):

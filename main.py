@@ -65,7 +65,10 @@ def reduce_by_source(df, thresh=0.75):
     return article_df
 
 
-def load_and_clean(csv_file, n_events=2, min_article_length=250, source_thresh=0.75, force=False):
+def load_and_clean(csv_file, n_events=2, min_article_length=250, source_thresh=0.75, force=False,
+                   eventregistry_api_key=None, min_articles=500):
+    print("Loading and cleaning text...")
+
     clean_csv_file = csv_file.replace('.csv', '-ev%s-minlen%d-thresh%.3f.clean.csv' % (
         n_events if n_events < np.inf else 'All', min_article_length, source_thresh))
     if not force and op.exists(clean_csv_file):
@@ -73,7 +76,11 @@ def load_and_clean(csv_file, n_events=2, min_article_length=250, source_thresh=0
         event_uris = df['eventUri'].unique()
         return df, event_uris
 
-    print("Loading and cleaning text...")
+    # Need to download data.
+    fetch_event_articles(
+        api_key=eventregistry_api_key, min_articles=min_articles,
+        csv_file=csv_file)
+
     df = pd.read_csv(csv_file)
     df['body'] = df['body'].apply(clean_text)
     event_uris = df['eventUri'].unique()
@@ -96,6 +103,8 @@ def load_and_clean(csv_file, n_events=2, min_article_length=250, source_thresh=0
             len(event_uris), len(keep_event_uris), len(df), len(new_df)))
         df = new_df
         event_uris = keep_event_uris
+
+    df.to_csv(clean_csv_file, encoding='utf-8')
 
     return df, event_uris
 
@@ -142,9 +151,9 @@ def group_article_counts_by_source(df, article_counts):
 
 def model_articles(df, article_counts, vectorizer, vocab, event_uris, n_events=2,
                    frequency_thresh=0.5, force=False):
-    print("Model each event separately...")
+    print("Training model ...")
     # Now model
-    model_pkl = 'lda-model-%d.pkl' % n_events
+    model_pkl = 'lda-model-ev%d.pkl' % n_events
     if not force and op.exists(model_pkl):
         # This error catch all isn't working correctly.
         # the vocabulary from the articles are not assigned.
@@ -187,16 +196,12 @@ def main(csv_file='raw_dataframe.csv', n_events=2, min_article_length=250,
     """
     # Note: to force re-download of event article info, you'll have to delete files manually.
     # Too risky to pass a flag...
-    fetch_event_articles(
-        api_key=eventregistry_api_key, min_articles=min_articles,
-        csv_file=csv_file)
     df, event_uris = load_and_clean(
-        csv_file=csv_file, n_events=n_events, min_article_length=min_article_length,
-        source_thresh=source_thresh)
+        csv_file=csv_file, min_articles=min_articles, eventregistry_api_key=eventregistry_api_key,
+        n_events=n_events, min_article_length=min_article_length, source_thresh=source_thresh)
 
-    import pdb; pdb.set_trace()
-    n_events = n_events if n_events < np.inf else len(df)
-    pkl_file = '%s-%s.pkl' % (csv_file.replace('.csv', ''), n_events)
+    n_events = n_events if n_events < np.inf else len(df['eventUri'].unique())
+    pkl_file = '%s-ev%s.pkl' % (csv_file.replace('.csv', ''), n_events)
 
     article_counts, vocab, vectorizer, df = vectorize_articles(
         df=df, event_uris=event_uris, pkl_file=pkl_file, force=force,
