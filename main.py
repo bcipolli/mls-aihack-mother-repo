@@ -245,10 +245,6 @@ def main(csv_file='raw_dataframe.csv', n_events=2, min_article_length=250,
                 source=df['source_title'], max_points_per_category=points_per_category,
                 username=plotly_username, api_key=plotly_api_key)
 
-#     tsne_plotly(data=lda_output_mat, cat=lda_cats, labels=lda_labels,
-#                 source=df['source'], max_points_per_category=points_per_category,
-#                 username=plotly_username, api_key=plotly_api_key)
-
 
 if __name__ == '__main__':
     import argparse

@@ -5,19 +5,19 @@ from plotly.tools import set_credentials_file
 from sklearn.manifold import TSNE
 
 
-def gen_plotly_specs(datas, names, cat):
+def gen_plotly_specs(datas, cat):
     data = []
 
-    for name in np.unique(cat):
+    for cur_cat in np.unique(cat):
 
-        i = np.where(cat == name)
-        index = datas[i]
+        idx = np.where(cat == cur_cat)[0]
+        cur_pts = datas[idx]
 
         # creating scatter plot for a topic
         trace = go.Scatter3d(
-            x=index[:, 0],
-            y=index[:, 1],
-            z=index[:, 2],
+            x=cur_pts[:, 0],
+            y=cur_pts[:, 1],
+            z=cur_pts[:, 2],
             mode='markers',
             marker=dict(
                 size=12,
@@ -26,7 +26,7 @@ def gen_plotly_specs(datas, names, cat):
                 ),
                 opacity=0.8
             ),
-            name=name
+            name=cur_cat
         )
 
         data.append(trace)
@@ -34,24 +34,29 @@ def gen_plotly_specs(datas, names, cat):
     return data
 
 
-def tsne_plotly(data, cat, labels, source, username, api_key, seed=0, max_points_per_category=250):
+def tsne_plotly(data, cat, labels, source, username, api_key, seed=0,
+                max_points_per_category=250, max_label_length=64):
     print("Plotting data...")
     set_credentials_file(username=username, api_key=api_key)
-    model = TSNE(n_components=3, random_state=seed, verbose=1, n_iter=200)
+    model = TSNE(n_components=3, random_state=seed, verbose=1)
     reduced = model.fit_transform(data)
 
     # subsample points before tsne / plotting
-    new_data = []
-    new_cats = []
-    for n in np.unique(cat):
-        idx = np.where(cat == n)[0]
-        idx = idx[:max_points_per_category]
-        new_data.append(data[idx])
-        new_cats.append(np.reshape(cat[idx], [cat[idx].size, 1]))
-    data = np.vstack(new_data)
-    cat = np.vstack(new_cats)
-    cat = np.reshape(cat, (cat.size,))
-    plot_params = [[reduced, labels, cat, True], [reduced, labels, source, False]]
+    if False:
+        new_data = []
+        new_cats = []
+        for n in np.unique(cat):
+            idx = np.where(cat == n)[0]
+            idx = idx[:max_points_per_category]
+            new_data.append(data[idx])
+            new_cats.append(np.reshape(cat[idx], [cat[idx].size, 1]))
+        data = np.vstack(new_data)
+        cat = np.vstack(new_cats)
+        cat = np.reshape(cat, (cat.size,))
+    labels = np.asarray([lbl[:max_label_length] for lbl in labels])
+    plot_params = [
+        [reduced, labels, labels[cat], 'topics-scatter.html'],
+        [reduced, labels, source, 'source-scatter.html']]
 
     # general figure layouts these are default values
     layout = go.Layout(
@@ -65,13 +70,8 @@ def tsne_plotly(data, cat, labels, source, username, api_key, seed=0, max_points
 
     # generating figures
     figures = []
-    for i in plot_params:
-        if i[3]:
-            fname = 'topics-scatter.html'
-        else:
-            fname = 'source-scatter.html'
-
-        fig = gen_plotly_specs(i[0], i[1], i[2])
+    for data, labels, cats, fname in plot_params:
+        fig = gen_plotly_specs(datas=data, cat=cats)
 
         plotly.offline.plot({
             "data": fig,
@@ -79,10 +79,3 @@ def tsne_plotly(data, cat, labels, source, username, api_key, seed=0, max_points
         }, filename=fname)
 
         figures.append([fig, fname])
-
-    # for n in figures:
-    #     plotly.offline.plot({
-    #         "data":n[0],
-    #         "layout":layout
-    #     }, filename=n[1])
-    #
