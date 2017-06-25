@@ -96,29 +96,29 @@ def vectorize_articles(df, event_uris, pkl_file, min_vocab_length=100, force=Fal
     print("Vectorizing data...")
     if not force and op.exists(pkl_file):
         with open(pkl_file, 'rb') as fp:
-            doc_counts, vocab, vectorizer = pkl.load(fp)
+            article_counts, vocab, vectorizer = pkl.load(fp)
     else:
         docs = df['body'].values
         l_docs = do_lemmatize(docs)
-        doc_counts, vocab, vectorizer = do_vectorize(l_docs, min_df=2, type="count")
+        article_counts, vocab, vectorizer = do_vectorize(l_docs, min_df=2, type="count")
 
         with open(pkl_file, 'wb') as fp:
-            pkl.dump((doc_counts, vocab, vectorizer), fp)
+            pkl.dump((article_counts, vocab, vectorizer), fp)
 
     # Limit by vocab
-    good_article_idx = np.squeeze(np.asarray((doc_counts > 0).sum(axis=1) >= min_vocab_length))
-    doc_counts = doc_counts[good_article_idx]
-    good_vocab_idx = np.squeeze(np.asarray(doc_counts.sum(axis=0) > 0))
-    doc_counts = doc_counts[:, good_vocab_idx]
+    good_article_idx = np.squeeze(np.asarray((article_counts > 0).sum(axis=1) >= min_vocab_length))
+    article_counts = article_counts[good_article_idx]
+    good_vocab_idx = np.squeeze(np.asarray(article_counts.sum(axis=0) > 0))
+    article_counts = article_counts[:, good_vocab_idx]
     vocab = vocab[good_vocab_idx]
     df = df.iloc[good_article_idx]
-    return doc_counts, vocab, vectorizer, df
+    return article_counts, vocab, vectorizer, df
 
 
-def group_doc_counts_by_source(df, doc_counts):
+def group_article_counts_by_source(df, article_counts):
     # Inputs:
     # df - dataframe; one row per article. 'source' column defines the news source.
-    # doc_counts - matrix; one row per article, one column per vocabulary item, value is the # of times
+    # article_counts - matrix; one row per article, one column per vocabulary item, value is the # of times
     #  that word appears in the article.
     #
     # Outputs: source_counts
@@ -126,10 +126,10 @@ def group_doc_counts_by_source(df, doc_counts):
     #  that word appears across all articles from that news source.
 
     # TODO: group by news source.
-    return doc_counts
+    return article_counts
 
 
-def model_articles(df, doc_counts, vectorizer, vocab, event_uris, n_events=2,
+def model_articles(df, article_counts, vectorizer, vocab, event_uris, n_events=2,
                    frequency_thresh=0.5, force=False):
     print("Model each event separately...")
     # Now model
@@ -141,24 +141,24 @@ def model_articles(df, doc_counts, vectorizer, vocab, event_uris, n_events=2,
         with open(model_pkl, 'rb') as fp:
             lda_labels, lda_output_mat, lda_cats, lda_mat, model = pkl.load(fp)
     else:
-        doc_events = df['eventUri'].values
         common_vocab_indices = []
+        article_events = df['eventUri'].values
         for uri in event_uris:
             print uri
-            event_doc_counts = doc_counts[doc_events == uri]
-            n_articles = event_doc_counts.shape[0]
-            word_freq_over_articles = (event_doc_counts > 0).sum(axis=0) / float(n_articles)
+            event_article_counts = article_counts[article_events == uri]
+            n_articles = event_article_counts.shape[0]
+            word_freq_over_articles = (event_article_counts > 0).sum(axis=0) / float(n_articles)
             word_freq_over_articles = np.squeeze(np.asarray(word_freq_over_articles))
 
             # Store common words for this event, then blank them out in the word counts
             common_vocab_idx = word_freq_over_articles >= frequency_thresh
-            doc_count_idx = np.asmatrix(doc_events == uri).T * np.asmatrix(common_vocab_idx)
-            doc_counts[doc_count_idx] = 0
             common_vocab_indices.append(common_vocab_idx)
+            article_count_idx = np.asmatrix(article_events == uri).T * np.asmatrix(common_vocab_idx)
+            article_counts[article_count_idx] = 0
 
             print '\tevent vocab:', vocab[common_vocab_idx]
 
-        source_counts = group_doc_counts_by_source(df=df, doc_counts=doc_counts)
+        source_counts = group_article_counts_by_source(df=df, article_counts=article_counts)
 
         lda_labels, lda_output_mat, lda_cats, lda_mat, model = do_lda(
             lda_mat=source_counts, vectorizer=vectorizer, vocab=vocab,
@@ -166,7 +166,7 @@ def model_articles(df, doc_counts, vectorizer, vocab, event_uris, n_events=2,
         with open(model_pkl, 'wb') as fp:
             pkl.dump((lda_labels, lda_output_mat, lda_cats, lda_mat, model), fp)
 
-    return common_vocab_indices, doc_counts, lda_labels, lda_output_mat, lda_cats, lda_mat, model
+    return common_vocab_indices, article_counts, lda_labels, lda_output_mat, lda_cats, lda_mat, model
 
 
 def main(csv_file='raw_dataframe.csv', n_events=2, min_article_length=250,
@@ -178,17 +178,12 @@ def main(csv_file='raw_dataframe.csv', n_events=2, min_article_length=250,
 
     df, event_uris = load_and_clean(
         csv_file=csv_file, n_events=n_events, min_article_length=min_article_length)
-    doc_counts, vocab, vectorizer, df = vectorize_articles(
+    article_counts, vocab, vectorizer, df = vectorize_articles(
         df=df, event_uris=event_uris, pkl_file=pkl_file, force=force,
         min_vocab_length=min_vocab_length)
     _, _, lda_labels, lda_output_mat, lda_cats, lda_mat, model = model_articles(
         df=df, event_uris=event_uris, vectorizer=vectorizer, vocab=vocab,
-        doc_counts=doc_counts, force=force, n_events=n_events)
-    # TODO: From here, call plotting
-    # creating model
-    tsne_plotly(lda_output_mat, lda_cats, lda_labels)
-
-    df['source']
+        article_counts=article_counts, force=force, n_events=n_events)
     tsne_plotly(lda_output_mat, lda_cats, lda_labels)
 
 
