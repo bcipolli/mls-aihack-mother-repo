@@ -7,6 +7,7 @@ import pandas as pd
 
 from nlp_demo import do_lda, do_lemmatize, do_vectorize
 from plotting import tsne_plotly
+from registry_data import fetch_event_articles
 
 
 def get_srcs(df):
@@ -64,7 +65,14 @@ def reduce_by_source(df, thresh=0.75):
     return article_df
 
 
-def load_and_clean(csv_file, n_events=2, min_article_length=250):
+def load_and_clean(csv_file, n_events=2, min_article_length=250, source_thresh=0.75, force=False):
+    clean_csv_file = csv_file.replace('.csv', '-ev%s-minlen%d-thresh%.3f.clean.csv' % (
+        n_events if n_events < np.inf else 'All', min_article_length, source_thresh))
+    if not force and op.exists(clean_csv_file):
+        df = pd.read_csv(clean_csv_file)
+        event_uris = df['eventUri'].unique()
+        return df, event_uris
+
     print("Loading and cleaning text...")
     df = pd.read_csv(csv_file)
     df['body'] = df['body'].apply(clean_text)
@@ -76,7 +84,7 @@ def load_and_clean(csv_file, n_events=2, min_article_length=250):
     df = df[good_idx]
 
     # Reduce by source.
-    df = reduce_by_source(df)
+    df = reduce_by_source(df, thresh=source_thresh)
 
     # Reduce by # events
     if n_events and n_events < np.inf:
@@ -92,7 +100,8 @@ def load_and_clean(csv_file, n_events=2, min_article_length=250):
     return df, event_uris
 
 
-def vectorize_articles(df, event_uris, pkl_file, min_vocab_length=100, force=False):
+def vectorize_articles(df, event_uris, pkl_file, min_vocab_length=100,
+                       lda_min_appearances=2, lda_vectorization_type='count', force=False):
     print("Vectorizing data...")
     if not force and op.exists(pkl_file):
         with open(pkl_file, 'rb') as fp:
@@ -100,7 +109,8 @@ def vectorize_articles(df, event_uris, pkl_file, min_vocab_length=100, force=Fal
     else:
         docs = df['body'].values
         l_docs = do_lemmatize(docs)
-        article_counts, vocab, vectorizer = do_vectorize(l_docs, min_df=2, type="count")
+        article_counts, vocab, vectorizer = do_vectorize(
+            l_docs, min_df=lda_min_appearances, type=lda_vectorization_type)
 
         with open(pkl_file, 'wb') as fp:
             pkl.dump((article_counts, vocab, vectorizer), fp)
@@ -112,6 +122,7 @@ def vectorize_articles(df, event_uris, pkl_file, min_vocab_length=100, force=Fal
     article_counts = article_counts[:, good_vocab_idx]
     vocab = vocab[good_vocab_idx]
     df = df.iloc[good_article_idx]
+
     return article_counts, vocab, vectorizer, df
 
 
@@ -168,32 +179,66 @@ def model_articles(df, article_counts, vectorizer, vocab, event_uris, n_events=2
 
 
 def main(csv_file='raw_dataframe.csv', n_events=2, min_article_length=250,
-         force=False, min_vocab_length=100):
+         force=False, min_vocab_length=100, min_articles=500, source_thresh=0.75,
+         lda_min_appearances=2, lda_vectorization_type='count',
+         plotly_username=None, plotly_api_key=None, eventregistry_api_key=None):
     """
     Do it all!
     """
-    pkl_file = '%s-%d.pkl' % (csv_file.replace('.csv', ''), n_events)
-
+    # Note: to force re-download of event article info, you'll have to delete files manually.
+    # Too risky to pass a flag...
+    fetch_event_articles(
+        api_key=eventregistry_api_key, min_articles=min_articles,
+        csv_file=csv_file)
     df, event_uris = load_and_clean(
-        csv_file=csv_file, n_events=n_events, min_article_length=min_article_length)
+        csv_file=csv_file, n_events=n_events, min_article_length=min_article_length,
+        source_thresh=source_thresh)
+
+    import pdb; pdb.set_trace()
+    n_events = n_events if n_events < np.inf else len(df)
+    pkl_file = '%s-%s.pkl' % (csv_file.replace('.csv', ''), n_events)
+
     article_counts, vocab, vectorizer, df = vectorize_articles(
         df=df, event_uris=event_uris, pkl_file=pkl_file, force=force,
+        lda_min_appearances=lda_min_appearances, lda_vectorization_type=lda_vectorization_type,
         min_vocab_length=min_vocab_length)
     _, lda_labels, lda_output_mat, lda_cats, lda_mat, model = model_articles(
         df=df, event_uris=event_uris, vectorizer=vectorizer, vocab=vocab,
         article_counts=article_counts, force=force, n_events=n_events)
-    tsne_plotly(lda_output_mat, lda_cats, lda_labels)
+
+    tsne_plotly(lda_output_mat, lda_cats, lda_labels, username=plotly_username, api_key=plotly_api_key)
 
 
 if __name__ == '__main__':
     import argparse
 
-    parser = argparse.ArgumentParser(description='Run the bot')
-    parser.add_argument('--force', action='store_true')
-    parser.add_argument('--n-events', type=int, default=21)
-    parser.add_argument('--min-article-length', type=int, default=250)
-    parser.add_argument('--min-vocab-length', type=int, default=100)
-    parser.add_argument('--csv-file', default='raw_dataframe.csv')
-    args = vars(parser.parse_args())
+    parser = argparse.ArgumentParser(
+        description='Train and visualize an LDA model on news article bias.')
 
+    # Training data
+    parser.add_argument('--force', action='store_true')
+    parser.add_argument('--csv-file', default=None)
+    parser.add_argument('--n-events', type=int, default=np.inf)
+
+    # Model parameters
+    parser.add_argument('--min-articles', type=int, default=500,
+                        help='Min # articles per event, to keep the event')
+    parser.add_argument('--source-thresh', type=float, default=0.75,
+                        help='Min %% of events a news source must cover, to be included.')
+    parser.add_argument('--min-article-length', type=int, default=250,
+                        help='Min # words in an article (pre-parsing)')
+    parser.add_argument('--min-vocab-length', type=int, default=100,
+                        help='Min # words in an article (post-lemmatizing, vectorizing)')
+    parser.add_argument('--lda-min-appearances', type=int, default=2,
+                        help='Min # appearances of a word, to be included in the vocabulary')
+    parser.add_argument('--lda-vectorization-type', default='count', choices=('count', 'tfidf'),
+                        help='Type of vectorization of article to word counts, to do.')
+
+    # API info
+    parser.add_argument('--plotly-username', default='bakeralex664')
+    parser.add_argument('--plotly-api-key', default='hWwBstLnNCX5CsDZpOSU')
+    parser.add_argument('--eventregistry-api-key', default='8b86c30c-cb8f-4d3f-aa84-077f3090e5ba')
+
+    args = vars(parser.parse_args())
+    args['csv_file'] = args['csv_file'] or 'raw_dataframe-min%d.csv' % args['min_articles']
     print main(**args)
