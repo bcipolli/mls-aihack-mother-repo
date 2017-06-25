@@ -187,7 +187,7 @@ def model_articles(df, article_counts, vectorizer, vocab, event_uris, n_events=2
             article_count_idx = np.asmatrix(article_events == uri).T * np.asmatrix(common_vocab_idx)
             article_counts[article_count_idx] = 0
 
-            print '\tevent vocab:', vocab[common_vocab_idx]
+            print '\tEvent vocab:', vocab[common_vocab_idx]
 
         if group_by == 'source':
             word_counts = group_article_counts_by_source(df=df, article_counts=article_counts)

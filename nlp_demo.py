@@ -41,6 +41,8 @@ def do_vectorize(docs, type="count", min_word_length=3, min_df=1, sentiment_weig
     X = vectorizer.transform(docs)
     vocab = np.asarray(vectorizer.vocabulary_.keys())
     vocab = vocab[np.argsort(vectorizer.vocabulary_.values())]  # ordered by counts (
+    freqs = np.reshape(np.asarray(X.sum(axis=0)), (X.shape[1],))
+    vocab = vocab[np.argsort(freqs)]  # ordered by counts (
 
     if sentiment_weight > 0:
         # from nltk.sentiment.vader import SentimentIntensityAnalyzer
@@ -74,7 +76,7 @@ def do_lda(lda_mat, vectorizer, vocab, n_topics=10, n_top_words=10, n_iter=1500,
     lda_cats : the argmax for lda topics of each program
     """
     # Make sure lda_mat has valid values.
-    lda_mat = (100 * lda_mat).astype(int)
+    lda_mat = (1 * lda_mat).astype(int)
     good_idx = lda_mat.sum(axis=0) > 0
     good_idx = np.reshape(np.asarray(good_idx), (good_idx.size,))
     lda_mat = lda_mat[:, good_idx]
@@ -96,7 +98,6 @@ def do_lda(lda_mat, vectorizer, vocab, n_topics=10, n_top_words=10, n_iter=1500,
         model.vocab = vocab
         model.fit(lda_mat)  # .astype(np.int64))
 
-    # top word for each topic
     lda_labels = []
     t_word = model.topic_word_
     topic_order_idx = np.argsort(np.linalg.norm(t_word, axis=1))[::-1]
