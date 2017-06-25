@@ -6,6 +6,7 @@ import numpy as np
 import pandas as pd
 
 from nlp_demo import do_lda, do_lemmatize, do_vectorize
+from tsne import tsne_plotly
 
 
 def get_srcs(df):
@@ -134,8 +135,11 @@ def model_articles(df, doc_counts, vectorizer, vocab, event_uris, n_events=2,
     # Now model
     model_pkl = 'lda-model-%d.pkl' % n_events
     if not force and op.exists(model_pkl):
+        # This error catch all isn't working correctly.
+        # the vocabulary from the articles are not assigned.
+
         with open(model_pkl, 'rb') as fp:
-            lda_labels, lda_output_mat, lda_cats, lda_mat, model = pkl.dump(fp)
+            lda_labels, lda_output_mat, lda_cats, lda_mat, model = pkl.load(fp)
     else:
         doc_events = df['eventUri'].values
         common_vocab_indices = []
@@ -181,6 +185,9 @@ def main(csv_file='raw_dataframe.csv', n_events=2, min_article_length=250,
         df=df, event_uris=event_uris, vectorizer=vectorizer, vocab=vocab,
         doc_counts=doc_counts, force=force, n_events=n_events)
     # TODO: From here, call plotting
+    # creating model
+    tsne_plotly(lda_output_mat, lda_cats, lda_labels)
+
     df['source']
 
 
