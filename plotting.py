@@ -5,7 +5,7 @@ from plotly.tools import set_credentials_file
 from sklearn.manifold import TSNE
 
 
-def gen_plotly_specs(datas, cat):
+def gen_plotly_specs(datas, hover_text, cat):
     data = []
 
     for cur_cat in np.unique(cat):
@@ -20,13 +20,12 @@ def gen_plotly_specs(datas, cat):
             z=cur_pts[:, 2],
             mode='markers',
             marker=dict(
-                size=12,
-                line=dict(
-                    width=0.0
-                ),
+                size=10,
+                line=dict(width=0.0),
                 opacity=0.8
             ),
-            name=cur_cat
+            name=cur_cat,
+            text=hover_text[idx]
         )
 
         data.append(trace)
@@ -55,8 +54,8 @@ def tsne_plotly(data, cat, labels, source, username, api_key, seed=0,
         cat = np.reshape(cat, (cat.size,))
     labels = np.asarray([lbl[:max_label_length] for lbl in labels])
     plot_params = [
-        [reduced, labels, labels[cat], 'topics-scatter.html'],
-        [reduced, labels, source, 'source-scatter.html']]
+        [reduced, source, labels[cat], 'topics-scatter.html'],
+        [reduced, labels[cat], source, 'source-scatter.html']]
 
     # general figure layouts these are default values
     layout = go.Layout(
@@ -70,8 +69,8 @@ def tsne_plotly(data, cat, labels, source, username, api_key, seed=0,
 
     # generating figures
     figures = []
-    for data, labels, cats, fname in plot_params:
-        fig = gen_plotly_specs(datas=data, cat=cats)
+    for data, hover_text, cats, fname in plot_params:
+        fig = gen_plotly_specs(datas=data, hover_text=hover_text, cat=cats)
 
         plotly.offline.plot({
             "data": fig,

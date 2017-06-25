@@ -187,7 +187,7 @@ def model_articles(df, article_counts, vectorizer, vocab, event_uris, n_events=2
             article_count_idx = np.asmatrix(article_events == uri).T * np.asmatrix(common_vocab_idx)
             article_counts[article_count_idx] = 0
             # print '\tEvent vocab:', vocab[common_vocab_idx]
-            print common_vocab_idx.sum(), article_counts.shape
+            # print common_vocab_idx.sum(), article_counts.shape
 
         if lda_vectorization_type == 'tfidf':
             # Make sure lda_mat has valid values.

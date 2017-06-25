@@ -41,8 +41,8 @@ def do_vectorize(docs, type="count", min_word_length=3, min_df=1, sentiment_weig
     X = vectorizer.transform(docs)
     vocab = np.asarray(vectorizer.vocabulary_.keys())
     vocab = vocab[np.argsort(vectorizer.vocabulary_.values())]  # ordered by counts (
-    freqs = np.reshape(np.asarray(X.sum(axis=0)), (X.shape[1],))
-    vocab = vocab[np.argsort(freqs)]  # ordered by counts (
+    # freqs = np.reshape(np.asarray(X.sum(axis=0)), (X.shape[1],))
+    # vocab = vocab[np.argsort(freqs)]  # ordered by counts (
 
     if sentiment_weight > 0:
         # from nltk.sentiment.vader import SentimentIntensityAnalyzer
