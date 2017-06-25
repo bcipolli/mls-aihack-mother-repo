@@ -150,10 +150,13 @@ def group_article_counts_by_source(df, article_counts):
 
 
 def model_articles(df, article_counts, vectorizer, vocab, event_uris, n_events=2,
-                   frequency_thresh=0.5, force=False):
+                   truth_frequency_thresh=0.5, force=False, group_by='source',
+                   n_topics=10, n_iter=1500):
     print("Training model ...")
     # Now model
-    model_pkl = 'lda-model-ev%d.pkl' % n_events
+    model_pkl = 'lda-model-groupBy%s-thresh%.2f-top%d-iter%d-ev%d.pkl' % (
+        group_by, truth_frequency_thresh, n_topics, n_iter, n_events)
+
     if not force and op.exists(model_pkl):
         # This error catch all isn't working correctly.
         # the vocabulary from the articles are not assigned.
@@ -170,17 +173,20 @@ def model_articles(df, article_counts, vectorizer, vocab, event_uris, n_events=2
             word_freq_over_articles = np.squeeze(np.asarray(word_freq_over_articles))
 
             # Store common words for this event, then blank them out in the word counts
-            common_vocab_idx = word_freq_over_articles >= frequency_thresh
+            common_vocab_idx = word_freq_over_articles >= truth_frequency_thresh
             article_count_idx = np.asmatrix(article_events == uri).T * np.asmatrix(common_vocab_idx)
             article_counts[article_count_idx] = 0
 
             print '\tevent vocab:', vocab[common_vocab_idx]
 
-        source_counts = group_article_counts_by_source(df=df, article_counts=article_counts)
+        if group_by == 'source':
+            word_counts = group_article_counts_by_source(df=df, article_counts=article_counts)
+        else:
+            word_counts = article_counts
 
         lda_labels, lda_output_mat, lda_cats, lda_mat, model = do_lda(
-            lda_mat=source_counts, vectorizer=vectorizer, vocab=vocab,
-            n_topics=10, n_top_words=10, n_iter=1500, return_model=True)
+            lda_mat=word_counts, vectorizer=vectorizer, vocab=vocab,
+            n_topics=n_topics, n_top_words=10, n_iter=n_iter, return_model=True)
         with open(model_pkl, 'wb') as fp:
             pkl.dump((lda_labels, lda_output_mat, lda_cats, lda_mat, model), fp)
 
@@ -190,6 +196,8 @@ def model_articles(df, article_counts, vectorizer, vocab, event_uris, n_events=2
 def main(csv_file='raw_dataframe.csv', n_events=2, min_article_length=250,
          force=False, min_vocab_length=100, min_articles=500, source_thresh=0.75,
          lda_min_appearances=2, lda_vectorization_type='count',
+         lda_groupby='source', lda_iters=1500, lda_topics=10,
+         truth_frequency_thresh=0.5,
          plotly_username=None, plotly_api_key=None, eventregistry_api_key=None):
     """
     Do it all!
@@ -209,7 +217,8 @@ def main(csv_file='raw_dataframe.csv', n_events=2, min_article_length=250,
         min_vocab_length=min_vocab_length)
     _, lda_labels, lda_output_mat, lda_cats, lda_mat, model = model_articles(
         df=df, event_uris=event_uris, vectorizer=vectorizer, vocab=vocab,
-        article_counts=article_counts, force=force, n_events=n_events)
+        article_counts=article_counts, force=force, n_events=n_events,
+        group_by=lda_groupby, truth_frequency_thresh=truth_frequency_thresh)
 
     tsne_plotly(lda_output_mat, lda_cats, lda_labels, username=plotly_username, api_key=plotly_api_key)
 
@@ -238,6 +247,14 @@ if __name__ == '__main__':
                         help='Min # appearances of a word, to be included in the vocabulary')
     parser.add_argument('--lda-vectorization-type', default='count', choices=('count', 'tfidf'),
                         help='Type of vectorization of article to word counts, to do.')
+    parser.add_argument('--lda-groupby', default='source', choices=('source', 'article'),
+                        help='Run LDA on text separated by article, or by news source?')
+    parser.add_argument('--lda-topics', type=int, default=10,
+                        help='# of LDA topics')
+    parser.add_argument('--lda-iters', type=int, default=1500,
+                        help='# of LDA iterations')
+    parser.add_argument('--truth-frequency-thresh', type=float, default=0.5,
+                        help='%% of articles in a news event that must mention a word, for it to be "truth" / removed.')
 
     # API info
     parser.add_argument('--plotly-username', default='bakeralex664')
