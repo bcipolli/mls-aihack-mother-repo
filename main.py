@@ -193,4 +193,14 @@ def main(csv_file='raw_dataframe.csv', n_events=2, min_article_length=250,
 
 
 if __name__ == '__main__':
-    print main(force=False, n_events=21)
+    import argparse
+
+    parser = argparse.ArgumentParser(description='Run the bot')
+    parser.add_argument('--force', action='store_true')
+    parser.add_argument('--n-events', type=int, default=21)
+    parser.add_argument('--min-article-length', type=int, default=250)
+    parser.add_argument('--min-vocab-length', type=int, default=100)
+    parser.add_argument('--csv-file', default='raw_dataframe.csv')
+    args = vars(parser.parse_args())
+
+    print main(**args)
