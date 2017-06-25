@@ -150,7 +150,14 @@ def group_article_counts_by_source(df, article_counts):
     #  that word appears across all articles from that news source.
 
     # TODO: group by news source.
-    return article_counts
+    sources = df['source_title'].unique()
+    print("Reorganizing %d articles by by %d sources..." % (article_counts.shape[0], len(sources)))
+
+    source_counts = []
+    for source in sources:
+        source_articles_idx = (df['source_title'] == source).values
+        source_counts.append(article_counts[source_articles_idx].sum(axis=0))
+    return np.squeeze(np.asarray(source_counts))
 
 
 def model_articles(df, article_counts, vectorizer, vocab, event_uris, n_events=2,
@@ -160,7 +167,6 @@ def model_articles(df, article_counts, vectorizer, vocab, event_uris, n_events=2
     # Now model
     model_pkl = 'lda-model-groupBy%s-thresh%.2f-top%d-iter%d-ev%d.pkl' % (
         group_by, truth_frequency_thresh, n_topics, n_iter, n_events)
-
     if not force and op.exists(model_pkl):
         # This error catch all isn't working correctly.
         # the vocabulary from the articles are not assigned.
@@ -201,7 +207,7 @@ def main(csv_file='raw_dataframe.csv', n_events=2, min_article_length=250,
          force=False, min_vocab_length=100, min_articles=500, source_thresh=0.75,
          lda_min_appearances=2, lda_vectorization_type='count',
          lda_groupby='source', lda_iters=1500, lda_topics=10,
-         truth_frequency_thresh=0.5,
+         truth_frequency_thresh=0.5, points_per_category=500,
          plotly_username=None, plotly_api_key=None, eventregistry_api_key=None):
     """
     Do it all!
@@ -223,9 +229,13 @@ def main(csv_file='raw_dataframe.csv', n_events=2, min_article_length=250,
     _, lda_labels, lda_output_mat, lda_cats, lda_mat, model = model_articles(
         df=df, event_uris=event_uris, vectorizer=vectorizer, vocab=vocab,
         article_counts=article_counts, force=force, n_events=n_events,
-        group_by=lda_groupby, truth_frequency_thresh=truth_frequency_thresh)
+        group_by=lda_groupby, n_topics=lda_topics, n_iter=lda_iters,
+        truth_frequency_thresh=truth_frequency_thresh)
 
-    tsne_plotly(lda_output_mat, lda_cats, lda_labels, username=plotly_username, api_key=plotly_api_key)
+    tsne_plotly(
+        lda_output_mat, lda_cats, lda_labels,
+        max_points_per_category=points_per_category,
+        username=plotly_username, api_key=plotly_api_key)
 
 
 if __name__ == '__main__':
@@ -252,7 +262,7 @@ if __name__ == '__main__':
                         help='Min # appearances of a word, to be included in the vocabulary')
     parser.add_argument('--lda-vectorization-type', default='count', choices=('count', 'tfidf'),
                         help='Type of vectorization of article to word counts, to do.')
-    parser.add_argument('--lda-groupby', default='source', choices=('source', 'article'),
+    parser.add_argument('--lda-groupby', default='article', choices=('source', 'article'),
                         help='Run LDA on text separated by article, or by news source?')
     parser.add_argument('--lda-topics', type=int, default=10,
                         help='# of LDA topics')
@@ -260,6 +270,8 @@ if __name__ == '__main__':
                         help='# of LDA iterations')
     parser.add_argument('--truth-frequency-thresh', type=float, default=0.5,
                         help='%% of articles in a news event that must mention a word, for it to be "truth" / removed.')
+    parser.add_argument('--points-per-category', type=int, default=500,
+                        help='# points per category (scatter)')
 
     # API info
     parser.add_argument('--plotly-username', default='bakeralex664')

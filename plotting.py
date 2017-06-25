@@ -5,9 +5,20 @@ from plotly.tools import set_credentials_file
 from sklearn.manifold import TSNE
 
 
-def tsne_plotly(data, cat, labels, username, api_key, seed=0):
+def tsne_plotly(data, cat, labels, username, api_key, seed=0, max_points_per_category=250):
     print("Plotting data...")
     set_credentials_file(username=username, api_key=api_key)
+    # subsample points before tsne / plotting
+    new_data = []
+    new_cats = []
+    for n in np.unique(cat):
+        idx = np.where(cat == n)[0]
+        idx = idx[:max_points_per_category]
+        new_data.append(data[idx])
+        new_cats.append(np.reshape(cat[idx], [cat[idx].size, 1]))
+    data = np.vstack(new_data)
+    cat = np.vstack(new_cats)
+    cat = np.reshape(cat, (cat.size,))
 
     # creating the model --- I am not sure if you can pickle TSNE need to run experiments. Had problems when i pickeled it
     model = TSNE(n_components=3, random_state=seed, verbose=1)
