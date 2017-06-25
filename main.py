@@ -211,7 +211,7 @@ def main(csv_file='raw_dataframe.csv', n_events=2, min_article_length=250,
         df=df, event_uris=event_uris, vectorizer=vectorizer, vocab=vocab,
         article_counts=article_counts, force=force, n_events=n_events)
 
-    tsne_plotly(lda_output_mat, lda_cats, lda_labels, username=plotly_username, api_key=plotly_api_key)
+    tsne_plotly(lda_output_mat, lda_cats, lda_labels, df['source'], username=plotly_username, api_key=plotly_api_key)
 
 
 if __name__ == '__main__':

@@ -5,7 +5,7 @@ from plotly.tools import set_credentials_file
 from sklearn.manifold import TSNE
 
 
-def tsne_plotly(data, cat, labels, username, api_key, seed=0):
+def tsne_plotly(data, cat, labels, source, username, api_key, seed=0):
     print("Plotting data...")
     set_credentials_file(username=username, api_key=api_key)
 
@@ -21,20 +21,7 @@ def tsne_plotly(data, cat, labels, username, api_key, seed=0):
         index = reduced[i]
 
         # creating scatter plot for a topic
-        trace = go.Scatter3d(
-            x=index[:, 0],
-            y=index[:, 1],
-            z=index[:, 2],
-            mode='markers',
-            marker=dict(
-                size=12,
-                line=dict(
-                    width=0.0
-                ),
-                opacity=0.8
-            ),
-            name=labels[n]
-        )
+
         data.append(trace)
 
     layout = go.Layout(
@@ -49,6 +36,24 @@ def tsne_plotly(data, cat, labels, username, api_key, seed=0):
     fig = go.Figure(data=data, layout=layout)
     py.iplot(fig, filename='simple-3d-scatter')
 
+
+# def gen_plotly_specs(data, name):
+#     trace = go.Scatter3d(
+#             x=data[:, 0],
+#             y=data[:, 1],
+#             z=data[:, 2],
+#             mode='markers',
+#             marker=dict(
+#                 size=12,
+#                 line=dict(
+#                     width=0.0
+#                 ),
+#                 opacity=0.8
+#             ),
+#             name=name
+#         )
+
+    return trace
 
 if __name__ == '__main__':
     # need to go into the main py
