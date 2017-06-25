@@ -5,8 +5,6 @@ import plotly.graph_objs as go
 from plotly.tools import set_credentials_file
 from sklearn.manifold import TSNE
 
-
-<<<<<<< HEAD
 def gen_plotly_specs(datas, names, cat):
     data = []
 
@@ -35,18 +33,12 @@ def gen_plotly_specs(datas, names, cat):
 
     return data
 
-=======
-<<<<<<< HEAD
->>>>>>> master
-def tsne_plotly(data, cat, labels, source, username, api_key, seed=0):
-=======
+
 def tsne_plotly(data, cat, labels, username, api_key, seed=0, max_points_per_category=250):
->>>>>>> 95d22955835727cff8baa328c6dacba8c98ac5b5
     print("Plotting data...")
     set_credentials_file(username=username, api_key=api_key)
-<<<<<<< HEAD
     model = TSNE(n_components=3, random_state=seed, verbose=1)
-=======
+
     # subsample points before tsne / plotting
     new_data = []
     new_cats = []
@@ -58,45 +50,7 @@ def tsne_plotly(data, cat, labels, username, api_key, seed=0, max_points_per_cat
     data = np.vstack(new_data)
     cat = np.vstack(new_cats)
     cat = np.reshape(cat, (cat.size,))
-
->>>>>>> master
-    # creating the model --- I am not sure if you can pickle TSNE need to run experiments. Had problems when i pickeled it
-
-    model = TSNE(n_components=3, random_state=seed, verbose=1)
-    reduced = model.fit_transform(data)
     plot_params = [[reduced, labels, cat, True], [reduced, labels, source, False]]
-
-    # generating figures
-    figures = []
-    for i in plot_params:
-        if i[3]:
-            fname = 'topics-scatter.html'
-        else:
-            fname = 'source-scatter.html'
-
-<<<<<<< HEAD
-        fig = gen_plotly_specs(i[0], i[1], i[2])
-        figures.append([fig, fname])
-=======
-        # creating scatter plot for a topic
-<<<<<<< HEAD
-
-=======
-        trace = go.Scatter3d(
-            x=index[:, 0],
-            y=index[:, 1],
-            z=index[:, 2],
-            mode='markers',
-            marker=dict(
-                size=5,
-                line=dict(width=0.0),
-                opacity=0.8
-            ),
-            name=labels[n]
-        )
->>>>>>> 95d22955835727cff8baa328c6dacba8c98ac5b5
-        data.append(trace)
->>>>>>> master
 
     # general figure layouts these are default values
     layout = go.Layout(
@@ -108,9 +62,25 @@ def tsne_plotly(data, cat, labels, username, api_key, seed=0, max_points_per_cat
         )
     )
 
-    for n in figures:
-        plotly.offline.plot({
-            "data":n[0],
-            "layout":layout
-        }, filename=n[1])
+    # generating figures
+    for i in plot_params:
+        if i[3]:
+            fname = 'topics-scatter.html'
+        else:
+            fname = 'source-scatter.html'
 
+        fig = gen_plotly_specs(i[0], i[1], i[2])
+
+        plotly.offline.plot({
+            "data": fig,
+            "layout": layout
+        }, filename=fname)
+
+        figures.append([fig, fname])
+
+    # for n in figures:
+    #     plotly.offline.plot({
+    #         "data":n[0],
+    #         "layout":layout
+    #     }, filename=n[1])
+    #

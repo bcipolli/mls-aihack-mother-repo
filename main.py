@@ -232,18 +232,15 @@ def main(csv_file='raw_dataframe.csv', n_events=2, min_article_length=250,
         group_by=lda_groupby, n_topics=lda_topics, n_iter=lda_iters,
         truth_frequency_thresh=truth_frequency_thresh)
 
-<<<<<<< HEAD
-    tsne_plotly(lda_output_mat, lda_cats, lda_labels, df['org_title'], username=plotly_username, api_key=plotly_api_key)
-=======
-<<<<<<< HEAD
-    tsne_plotly(lda_output_mat, lda_cats, lda_labels, df['source'], username=plotly_username, api_key=plotly_api_key)
-=======
-    tsne_plotly(
-        lda_output_mat, lda_cats, lda_labels,
-        max_points_per_category=points_per_category,
-        username=plotly_username, api_key=plotly_api_key)
->>>>>>> 95d22955835727cff8baa328c6dacba8c98ac5b5
->>>>>>> master
+    tsne_plotly(lda_output_mat, lda_cats, lda_labels,
+                df['org_title'], max_points_per_category=points_per_category,
+                username=plotly_username, api_key=plotly_api_key)
+
+    tsne_plotly(lda_output_mat, lda_cats, lda_labels,
+                df['source'], max_points_per_category=points_per_category,
+                username=plotly_username, api_key=plotly_api_key)
+
+
 
 
 if __name__ == '__main__':
