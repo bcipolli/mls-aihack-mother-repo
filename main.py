@@ -141,7 +141,6 @@ def model_articles(df, article_counts, vectorizer, vocab, event_uris, n_events=2
         with open(model_pkl, 'rb') as fp:
             lda_labels, lda_output_mat, lda_cats, lda_mat, model = pkl.load(fp)
     else:
-        common_vocab_indices = []
         article_events = df['eventUri'].values
         for uri in event_uris:
             print uri
@@ -152,7 +151,6 @@ def model_articles(df, article_counts, vectorizer, vocab, event_uris, n_events=2
 
             # Store common words for this event, then blank them out in the word counts
             common_vocab_idx = word_freq_over_articles >= frequency_thresh
-            common_vocab_indices.append(common_vocab_idx)
             article_count_idx = np.asmatrix(article_events == uri).T * np.asmatrix(common_vocab_idx)
             article_counts[article_count_idx] = 0
 
@@ -166,7 +164,7 @@ def model_articles(df, article_counts, vectorizer, vocab, event_uris, n_events=2
         with open(model_pkl, 'wb') as fp:
             pkl.dump((lda_labels, lda_output_mat, lda_cats, lda_mat, model), fp)
 
-    return common_vocab_indices, article_counts, lda_labels, lda_output_mat, lda_cats, lda_mat, model
+    return article_counts, lda_labels, lda_output_mat, lda_cats, lda_mat, model
 
 
 def main(csv_file='raw_dataframe.csv', n_events=2, min_article_length=250,
@@ -181,7 +179,7 @@ def main(csv_file='raw_dataframe.csv', n_events=2, min_article_length=250,
     article_counts, vocab, vectorizer, df = vectorize_articles(
         df=df, event_uris=event_uris, pkl_file=pkl_file, force=force,
         min_vocab_length=min_vocab_length)
-    _, _, lda_labels, lda_output_mat, lda_cats, lda_mat, model = model_articles(
+    _, lda_labels, lda_output_mat, lda_cats, lda_mat, model = model_articles(
         df=df, event_uris=event_uris, vectorizer=vectorizer, vocab=vocab,
         article_counts=article_counts, force=force, n_events=n_events)
     tsne_plotly(lda_output_mat, lda_cats, lda_labels)
