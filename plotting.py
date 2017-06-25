@@ -28,9 +28,7 @@ def tsne_plotly(data, cat, labels, username, api_key, seed=0):
             mode='markers',
             marker=dict(
                 size=5,
-                line=dict(
-                    width=0.0
-                ),
+                line=dict(width=0.0),
                 opacity=0.8
             ),
             name=labels[n]

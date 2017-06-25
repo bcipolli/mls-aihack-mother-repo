@@ -10,23 +10,12 @@ from plotting import tsne_plotly
 from registry_data import fetch_event_articles
 
 
-def get_srcs(df):
-    srcs = []
-    for source in df.source:
-        try:
-            title = eval(source)['title']
-        except:
-            continue
-        srcs.append(title)
-    return srcs
-
-
-def get_src(source):
+def get_source_prop(source, prop_name):
+    """Convert string to dict"""
     try:
-        title = eval(source)['title']
+        return eval(source).get(prop_name)
     except:
-        return
-    return title
+        return source
 
 
 def clean_text(txt):
@@ -35,38 +24,51 @@ def clean_text(txt):
     return txt
 
 
-def reduce_by_source(df, thresh=0.75):
-    df['org_title'] = df['source'].map(get_src)
-    n_events = len(df['eventUri'].unique())
+def reduce_by_source(df, thresh=0.75, max_rows_per_article=np.inf):
+    df['source_title'] = df['source'].map(lambda s: get_source_prop(s, 'title'))
+    df['source_uri'] = df['source'].map(lambda s: get_source_prop(s, 'uri') or '')
 
-    total_srcs = get_srcs(df)
-    all_srcs = []
-    for group in df.groupby(by='eventUri'):
-        srcs = get_srcs(group[1])
-        all_srcs.append(srcs)
+    n_events = len(df['eventUri'].unique())
+    total_srcs = df['source_title']
     srcs_dict = {src: 0 for src in total_srcs}
+
+    # Figure out which news sources have enough event coverage (at least thresh %)
     for group in df.groupby(by='eventUri'):
-        event_srcs = list(set(get_srcs(group[1])))
+        event_srcs = group[1]['source_title'].unique()
         for src in event_srcs:
             srcs_dict[src] += 1
+    # Drop null keys
     srcs_with_cover = {key: value for key, value in srcs_dict.items()
-                       if value > n_events * thresh}
+                       if (value > n_events * thresh
+                           and not pd.isnull(key or np.nan))}
     print('total sources: {}\nsource with cover (>{}): {}'.format(
         len(np.unique(total_srcs)), thresh, len(srcs_with_cover)))
 
+    # Only include
     cover_articles = {}
     dfs = []
+    df['body_len'] = df['body'].map(lambda b: len(b) if not pd.isnull(b) else 0)
+    df = df.sort_values(by=['body_len'], ascending=False)
+
     for event_uri, df in df.groupby(by='eventUri'):
         cover_articles[event_uri] = {}
         for src in srcs_with_cover.keys():
-            dfs.append(df.loc[df.org_title == src, :])
+            src_rows = df.loc[df['source_title'] == src, :]   # .sort_values(by='body_len', ascending=False)
+            if len(src_rows) >= 1 and max_rows_per_article < np.inf:
+                max_idx = int(np.min([
+                    np.ceil(len(src_rows) / 2.),
+                    np.min([max_rows_per_article, len(src_rows)])]))
+                assert max_idx > 0, "Never should reduce from an article to nothing."
+                # print "Reduce %s from %d to %d" % (src, len(src_rows), max_idx)
+                src_rows = src_rows.iloc[:max_idx]
+            dfs.append(src_rows)
     article_df = pd.concat(dfs)
 
     return article_df
 
 
 def load_and_clean(csv_file, n_events=2, min_article_length=250, source_thresh=0.75, force=False,
-                   eventregistry_api_key=None, min_articles=500):
+                   eventregistry_api_key=None, min_articles=500, group_by='source'):
     print("Loading and cleaning text...")
 
     clean_csv_file = csv_file.replace('.csv', '-ev%s-minlen%d-thresh%.3f.clean.csv' % (
@@ -91,7 +93,9 @@ def load_and_clean(csv_file, n_events=2, min_article_length=250, source_thresh=0
     df = df[good_idx]
 
     # Reduce by source.
-    df = reduce_by_source(df, thresh=source_thresh)
+    df = reduce_by_source(
+        df, thresh=source_thresh,
+        max_rows_per_article=np.inf if group_by == 'source' else 1)
 
     # Reduce by # events
     if n_events and n_events < np.inf:
@@ -206,7 +210,8 @@ def main(csv_file='raw_dataframe.csv', n_events=2, min_article_length=250,
     # Too risky to pass a flag...
     df, event_uris = load_and_clean(
         csv_file=csv_file, min_articles=min_articles, eventregistry_api_key=eventregistry_api_key,
-        n_events=n_events, min_article_length=min_article_length, source_thresh=source_thresh)
+        n_events=n_events, min_article_length=min_article_length, source_thresh=source_thresh,
+        group_by=lda_groupby)
 
     n_events = n_events if n_events < np.inf else len(df['eventUri'].unique())
     pkl_file = '%s-ev%s.pkl' % (csv_file.replace('.csv', ''), n_events)
