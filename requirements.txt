@@ -6,3 +6,4 @@ pandas
 scipy
 sklearn
 plotly
+pyldavis

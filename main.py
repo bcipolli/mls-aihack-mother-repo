@@ -10,23 +10,12 @@ from plotting import tsne_plotly
 from registry_data import fetch_event_articles
 
 
-def get_srcs(df):
-    srcs = []
-    for source in df.source:
-        try:
-            title = eval(source)['title']
-        except:
-            continue
-        srcs.append(title)
-    return srcs
-
-
-def get_src(source):
+def get_source_prop(source, prop_name):
+    """Convert string to dict"""
     try:
-        title = eval(source)['title']
+        return eval(source).get(prop_name)
     except:
-        return
-    return title
+        return source
 
 
 def clean_text(txt):
@@ -35,38 +24,51 @@ def clean_text(txt):
     return txt
 
 
-def reduce_by_source(df, thresh=0.75):
-    df['org_title'] = df['source'].map(get_src)
-    n_events = len(df['eventUri'].unique())
+def reduce_by_source(df, thresh=0.75, max_rows_per_article=np.inf):
+    df['source_title'] = df['source'].map(lambda s: get_source_prop(s, 'title'))
+    df['source_uri'] = df['source'].map(lambda s: get_source_prop(s, 'uri') or '')
 
-    total_srcs = get_srcs(df)
-    all_srcs = []
-    for group in df.groupby(by='eventUri'):
-        srcs = get_srcs(group[1])
-        all_srcs.append(srcs)
+    n_events = len(df['eventUri'].unique())
+    total_srcs = df['source_title']
     srcs_dict = {src: 0 for src in total_srcs}
+
+    # Figure out which news sources have enough event coverage (at least thresh %)
     for group in df.groupby(by='eventUri'):
-        event_srcs = list(set(get_srcs(group[1])))
+        event_srcs = group[1]['source_title'].unique()
         for src in event_srcs:
             srcs_dict[src] += 1
+    # Drop null keys
     srcs_with_cover = {key: value for key, value in srcs_dict.items()
-                       if value > n_events * thresh}
+                       if (value > n_events * thresh
+                           and not pd.isnull(key or np.nan))}
     print('total sources: {}\nsource with cover (>{}): {}'.format(
         len(np.unique(total_srcs)), thresh, len(srcs_with_cover)))
 
+    # Only include
     cover_articles = {}
     dfs = []
+    df['body_len'] = df['body'].map(lambda b: len(b) if not pd.isnull(b) else 0)
+    df = df.sort_values(by=['body_len'], ascending=False)
+
     for event_uri, df in df.groupby(by='eventUri'):
         cover_articles[event_uri] = {}
         for src in srcs_with_cover.keys():
-            dfs.append(df.loc[df.org_title == src, :])
+            src_rows = df.loc[df['source_title'] == src, :]   # .sort_values(by='body_len', ascending=False)
+            if len(src_rows) >= 1 and max_rows_per_article < np.inf:
+                max_idx = int(np.min([
+                    np.ceil(len(src_rows) / 2.),
+                    np.min([max_rows_per_article, len(src_rows)])]))
+                assert max_idx > 0, "Never should reduce from an article to nothing."
+                # print "Reduce %s from %d to %d" % (src, len(src_rows), max_idx)
+                src_rows = src_rows.iloc[:max_idx]
+            dfs.append(src_rows)
     article_df = pd.concat(dfs)
 
     return article_df
 
 
 def load_and_clean(csv_file, n_events=2, min_article_length=250, source_thresh=0.75, force=False,
-                   eventregistry_api_key=None, min_articles=500):
+                   eventregistry_api_key=None, min_articles=500, group_by='source'):
     print("Loading and cleaning text...")
 
     clean_csv_file = csv_file.replace('.csv', '-ev%s-minlen%d-thresh%.3f.clean.csv' % (
@@ -91,7 +93,9 @@ def load_and_clean(csv_file, n_events=2, min_article_length=250, source_thresh=0
     df = df[good_idx]
 
     # Reduce by source.
-    df = reduce_by_source(df, thresh=source_thresh)
+    df = reduce_by_source(
+        df, thresh=source_thresh,
+        max_rows_per_article=np.inf if group_by == 'source' else 1)
 
     # Reduce by # events
     if n_events and n_events < np.inf:
@@ -146,14 +150,23 @@ def group_article_counts_by_source(df, article_counts):
     #  that word appears across all articles from that news source.
 
     # TODO: group by news source.
-    return article_counts
+    sources = df['source_title'].unique()
+    print("Reorganizing %d articles by by %d sources..." % (article_counts.shape[0], len(sources)))
+
+    source_counts = []
+    for source in sources:
+        source_articles_idx = (df['source_title'] == source).values
+        source_counts.append(article_counts[source_articles_idx].sum(axis=0))
+    return np.squeeze(np.asarray(source_counts))
 
 
 def model_articles(df, article_counts, vectorizer, vocab, event_uris, n_events=2,
-                   frequency_thresh=0.5, force=False):
+                   truth_frequency_thresh=0.5, force=False, group_by='source',
+                   n_topics=10, n_iter=1500):
     print("Training model ...")
     # Now model
-    model_pkl = 'lda-model-ev%d.pkl' % n_events
+    model_pkl = 'lda-model-groupBy%s-thresh%.2f-top%d-iter%d-ev%d.pkl' % (
+        group_by, truth_frequency_thresh, n_topics, n_iter, n_events)
     if not force and op.exists(model_pkl):
         # This error catch all isn't working correctly.
         # the vocabulary from the articles are not assigned.
@@ -170,17 +183,20 @@ def model_articles(df, article_counts, vectorizer, vocab, event_uris, n_events=2
             word_freq_over_articles = np.squeeze(np.asarray(word_freq_over_articles))
 
             # Store common words for this event, then blank them out in the word counts
-            common_vocab_idx = word_freq_over_articles >= frequency_thresh
+            common_vocab_idx = word_freq_over_articles >= truth_frequency_thresh
             article_count_idx = np.asmatrix(article_events == uri).T * np.asmatrix(common_vocab_idx)
             article_counts[article_count_idx] = 0
 
             print '\tevent vocab:', vocab[common_vocab_idx]
 
-        source_counts = group_article_counts_by_source(df=df, article_counts=article_counts)
+        if group_by == 'source':
+            word_counts = group_article_counts_by_source(df=df, article_counts=article_counts)
+        else:
+            word_counts = article_counts
 
         lda_labels, lda_output_mat, lda_cats, lda_mat, model = do_lda(
-            lda_mat=source_counts, vectorizer=vectorizer, vocab=vocab,
-            n_topics=10, n_top_words=10, n_iter=1500, return_model=True)
+            lda_mat=word_counts, vectorizer=vectorizer, vocab=vocab,
+            n_topics=n_topics, n_top_words=10, n_iter=n_iter, return_model=True)
         with open(model_pkl, 'wb') as fp:
             pkl.dump((lda_labels, lda_output_mat, lda_cats, lda_mat, model), fp)
 
@@ -190,6 +206,8 @@ def model_articles(df, article_counts, vectorizer, vocab, event_uris, n_events=2
 def main(csv_file='raw_dataframe.csv', n_events=2, min_article_length=250,
          force=False, min_vocab_length=100, min_articles=500, source_thresh=0.75,
          lda_min_appearances=2, lda_vectorization_type='count',
+         lda_groupby='source', lda_iters=1500, lda_topics=10,
+         truth_frequency_thresh=0.5, points_per_category=500,
          plotly_username=None, plotly_api_key=None, eventregistry_api_key=None):
     """
     Do it all!
@@ -198,7 +216,8 @@ def main(csv_file='raw_dataframe.csv', n_events=2, min_article_length=250,
     # Too risky to pass a flag...
     df, event_uris = load_and_clean(
         csv_file=csv_file, min_articles=min_articles, eventregistry_api_key=eventregistry_api_key,
-        n_events=n_events, min_article_length=min_article_length, source_thresh=source_thresh)
+        n_events=n_events, min_article_length=min_article_length, source_thresh=source_thresh,
+        group_by=lda_groupby)
 
     n_events = n_events if n_events < np.inf else len(df['eventUri'].unique())
     pkl_file = '%s-ev%s.pkl' % (csv_file.replace('.csv', ''), n_events)
@@ -209,9 +228,22 @@ def main(csv_file='raw_dataframe.csv', n_events=2, min_article_length=250,
         min_vocab_length=min_vocab_length)
     _, lda_labels, lda_output_mat, lda_cats, lda_mat, model = model_articles(
         df=df, event_uris=event_uris, vectorizer=vectorizer, vocab=vocab,
-        article_counts=article_counts, force=force, n_events=n_events)
+        article_counts=article_counts, force=force, n_events=n_events,
+        group_by=lda_groupby, n_topics=lda_topics, n_iter=lda_iters,
+        truth_frequency_thresh=truth_frequency_thresh)
 
+<<<<<<< HEAD
     tsne_plotly(lda_output_mat, lda_cats, lda_labels, df['org_title'], username=plotly_username, api_key=plotly_api_key)
+=======
+<<<<<<< HEAD
+    tsne_plotly(lda_output_mat, lda_cats, lda_labels, df['source'], username=plotly_username, api_key=plotly_api_key)
+=======
+    tsne_plotly(
+        lda_output_mat, lda_cats, lda_labels,
+        max_points_per_category=points_per_category,
+        username=plotly_username, api_key=plotly_api_key)
+>>>>>>> 95d22955835727cff8baa328c6dacba8c98ac5b5
+>>>>>>> master
 
 
 if __name__ == '__main__':
@@ -238,6 +270,16 @@ if __name__ == '__main__':
                         help='Min # appearances of a word, to be included in the vocabulary')
     parser.add_argument('--lda-vectorization-type', default='count', choices=('count', 'tfidf'),
                         help='Type of vectorization of article to word counts, to do.')
+    parser.add_argument('--lda-groupby', default='article', choices=('source', 'article'),
+                        help='Run LDA on text separated by article, or by news source?')
+    parser.add_argument('--lda-topics', type=int, default=10,
+                        help='# of LDA topics')
+    parser.add_argument('--lda-iters', type=int, default=1500,
+                        help='# of LDA iterations')
+    parser.add_argument('--truth-frequency-thresh', type=float, default=0.5,
+                        help='%% of articles in a news event that must mention a word, for it to be "truth" / removed.')
+    parser.add_argument('--points-per-category', type=int, default=500,
+                        help='# points per category (scatter)')
 
     # API info
     parser.add_argument('--plotly-username', default='bakeralex664')
