@@ -48,15 +48,13 @@ python main.py
 
 At the end of the modeling process a 3D graph will be generated for visualization purposes.
 
-**Results and Improvements**
-
-Results
+**Results**
 - Found common words across news articles within an event.
 - When clustering “residual” words via LDA, a lot of emotion words appear
 - Sources did not separate by topic
   - MAYBE: sources use emotional words to describe the news; not consistent by event.
 
-Future Directions
+**Future Directions**
 - Model new source bias within a particular topic
 - Boost / attenuate emotion words via sentiment analysis
 - See if there’s bias by author
